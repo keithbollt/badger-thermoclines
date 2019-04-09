@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 The crux of this project is to compare how the thermoclines on each of the 9 Wisconsin lakes in the NTL-LTER dataset have moved over the course of the 35 years of data. I am interested in this question because I have an interest in coldwater fisheries that rely on thermoclines to survive the summer weather. Perhaps climate change is affecting where the thermocline sets up, and therefore shrinking the available summer habitat of trout.
-```{r}
+```{r package and data load; theme}
 #Setting up session and loading all packages I think I might need
 getwd()
 library(tidyverse)
@@ -46,7 +46,7 @@ Write the report (you might have to knit it to Word for your own sanity)
 Go fishing
 
 Change the date column to dates
-```{r}
+```{r date as date}
 #Changing the date column to read as a date
 class(NTLR_raw$sampledate)
 NTLR_raw$sampledate <- as.Date(NTLR_raw$sampledate, format="%m/%d/%y")
@@ -54,7 +54,7 @@ class(NTLR_raw$sampledate)
 ```
 
 Filter to generate a dataset for each of the nine lakes.
-```{r}
+```{r filter}
 unique(NTLR_raw$lakename)  # This data summary gives me the names of the nine lakes.
 Paullake_raw <- NTLR_raw %>%
   filter(lakename == "Paul Lake")
@@ -84,64 +84,92 @@ It looks like there is not enough temporal resolution to measure close-to-contin
 My research question, then, is as follows:
 
 How have temperature and oxygen conditions changed at 10 meters depth in a series of Wisconsin Lakes? Is climate change affecting where the thermocline sets up in these lakes?
-```{r}
+```{r processing each lake}
 #filtering for just the data at 10m depths in summer (June 20-September 21)
 Paullake_processed <- Paullake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264) %>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Paullake_processed)  
 #Enough datapoints to analyse this lake.
 
 Peterlake_processed <- Peterlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Peterlake_processed) 
 #Enough datapoints to analyse this lake.
 
 Tuesdaylake_processed <- Tuesdaylake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Tuesdaylake_processed) #Enough datapoints to analyse this lake.
 
 Eastlonglake_processed <- Eastlonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Eastlonglake_processed) 
 #Enough datapoints to analyse this lake.
 
 Westlonglake_processed <- Westlonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Westlonglake_processed) 
 #Enough datapoints to analyse this lake.
 
 Centrallonglake_processed <- Centrallonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)  
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()  
 dim(Centrallonglake_processed) 
 #There are 0 data points taken on Central Long Lake below 4 meters. Unfortunately, I am going to have to eliminate Central Long Lake from my analysis.
 
 Hummingbirdlake_processed <- Hummingbirdlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)  
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()  
 dim(Hummingbirdlake_processed) 
 #Hummingbird lake only has data from 3 years, and only one datapoint is below 7 meters. Unfortunately, I am going to have to eliminate Hummingbird Lake from my analysis.
 
 Cramptonlake_processed <- Cramptonlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude()
 dim(Cramptonlake_processed) 
 #There are probably enough datapoints to analyse this lake.
 
 Wardlake_processed <- Wardlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264) 
+  filter(depth == 10, daynum %in% 172:264)%>%
+  select(lakename:dissolvedOxygen) %>%
+  mutate(Week = week(sampledate)) %>%
+  na.exclude() 
 dim(Wardlake_processed) 
 #Ward lake only has seven datapoints below 7 meters. Unfortunately, I am going to have to eliminate Ward Lake from my analysis.
 ```
 After deciding on what question I wanted to answer and what data I wanted to use to answer my question, I unfortunately had to eliminate three lakes from my analysis. I still have six lakes to perform my analysis on.
 
-```{r}
+```{r combining processd data}
 #Combining the processed lake data into one file for later analysis
 NTLER_processed <- rbind(Paullake_processed, Peterlake_processed, Tuesdaylake_processed,
                           Eastlonglake_processed, Westlonglake_processed, Cramptonlake_processed)
 unique(NTLER_processed$lakename)
 dim(NTLER_processed)
+head(NTLER_processed)
 ```
 
 A little data visualization before my data analysis.
-```{r}
+```{r visualization, include=FALSE}
 Alllakes_boxplot <- ggplot(NTLER_processed, aes(x = lakename, y = temperature_C, color = lakename))+
   geom_boxplot()+
   labs(x = "Lake Name", y = "Temperature (Celsius)", color = "Lake Name")
@@ -154,6 +182,7 @@ Paultemp_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = tem
   scale_color_gradient(low = "blue", high = "red")
 Paultemp_visualization
 #maybe a slight upward trend in temperature at 10m over time
+#use this chart for Thursday
 
 Paulo2_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = dissolvedOxygen, color = dissolvedOxygen))+
   geom_point()+
@@ -167,5 +196,33 @@ Alllakes_visualization <- ggplot(NTLER_processed, aes(x = sampledate, y = temper
   labs(x = "Date", y = "Temperature (Celsius)", color = "Lake Name")
 Alllakes_visualization
 #Kind of hard to see a trend here. This graph has too much data at once and different lakes have different temporal ranges.
+```
+
+Now that I have visualized my data, it is time to start running statistical tests on it in order to answer my research question. I am going to look at each of the nine lakes individually, and then look at all nine lakes at once. I am interested in two parameters at 10 meters depth, temperature and dissolved oxygen content. I will run a repeated measures ANOVA on the combined processed dataset, which contains data from six lakes. I will first run the test on temperature and then on dissolved oxygen. This test takes into account autocorrelation within a given year and within a given lake. 
+
+```{r repeated measures ANOVA temperature }
+
+#Accounting for autocorrelation
+Alllakestemptest.auto <- lme(data = NTLER_processed, 
+                     temperature_C ~ sampledate * lakename, #fixed effects portion of model: response variable, being predicted based off of sampledate and lakename
+                     random = ~1|Week)  # this is the random effect portion of the model
+Alllakestemptest.auto
+# we care about the Stddeviation between each week
+ACF(Alllakestemptest.auto)
+# we care about the lag of 1's value. This tells us how much temperature is autocorrelated within a given year (it's about 7%)
+
+#running the ANOVA
+Alllakestemptest.mixed <- lme(data = NTLER_processed,
+                     temperature_C ~ sampledate * lakename, 
+                     random = ~1|Week,
+                     correlation = corAR1(form = ~ sampledate/lakename|Week, value = 0.07167968), #correlation from previous model, sampledate/lakename because the model can only do one lake at a time
+                     method = "REML")
+summary(Alllakestemptest.mixed)
+```
+The results from our mixed effects test demonstrate an important finding. Observe that the p-value for sampledate is less than 0.05. This means that we cannot reject the null hypothesis that there is a significant correlation between date and temperature at 10 meters. This supports the idea that the temperature at 10 meters in these lakes is changing.
+
+```{r repeated measures ANOVA oxygen}
+#oxygen may be autocorrelated with temperature
+#copy from above, and plug in the oxygen data
 ```
 

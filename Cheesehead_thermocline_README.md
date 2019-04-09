@@ -1,5 +1,5 @@
 # badger-thermoclines
-This respository was created as part of a final project for ENVIRON 872 at Duke University. I am looking at NTLR data to determine thermocline movement on 9 Wisconsin lakes.
+This respository was created as part of a final project for ENVIRON 872 at Duke University. I am looking at NTLR data to determine thermocline movement on 9 Wisconsin lakes between the period 1984 and 2016. There are potentially biological ramifications from a shrinking coldwater summer refuge for organisms such as trout if in fact thermoclines are setting up at lower levels.
 
 ## Summary
 The dataset used for this project was prepared for Environmental Data Analytics (ENV 872L) at Duke University, Spring 2019 by Kateri Salk.

@@ -1,0 +1,171 @@
+---
+title: "Bollt_FinalProject_Thermocline"
+output: pdf_document
+geometry: margin=2.54cm
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The crux of this project is to compare how the thermoclines on each of the 9 Wisconsin lakes in the NTL-LTER dataset have moved over the course of the 35 years of data. I am interested in this question because I have an interest in coldwater fisheries that rely on thermoclines to survive the summer weather. Perhaps climate change is affecting where the thermocline sets up, and therefore shrinking the available summer habitat of trout.
+```{r}
+#Setting up session and loading all packages I think I might need
+getwd()
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(multcompView)
+library(nlme)
+library(lsmeans)
+
+#Reading in the raw lake dataset
+NTLR_raw <- read.csv("V:/ENV_872_Project_Directory/Data/Raw/NTL-LTER_Lake_ChemistryPhysics_Raw.csv")
+View(NTLR_raw)
+
+#setting a theme for plots
+mytheme <- mytheme <- theme_classic(base_size = 12.2696)+
+  theme(axis.text = element_text(color = "Blue"),
+  legend.position = "top")
+theme_set(mytheme)
+```
+Next steps (document everything with comments as you work):
+Change the date column to dates
+Filter to generate a dataset for each of the nine lakes.
+Determine how to set a thermocline benchmark (July average?)
+Determine what data to compare to over time (see Kateri's comment)
+Run that comparison for each lake
+Figure out how to compare each of the lakes to eachother to look for overall trends - maybe correlated with maximum depth
+-maybe compare average temperature and temperature range?
+-Mann-Kendall to look for trends between lakes controlling for seasonality (o2 and temperature)
+-Look at each lake individually for both o2 and temperature to look for trends
+Make a bunch of graphs
+Write the report (you might have to knit it to Word for your own sanity)
+Go fishing
+
+Change the date column to dates
+```{r}
+#Changing the date column to read as a date
+class(NTLR_raw$sampledate)
+NTLR_raw$sampledate <- as.Date(NTLR_raw$sampledate, format="%m/%d/%y")
+class(NTLR_raw$sampledate)
+```
+
+Filter to generate a dataset for each of the nine lakes.
+```{r}
+unique(NTLR_raw$lakename)  # This data summary gives me the names of the nine lakes.
+Paullake_raw <- NTLR_raw %>%
+  filter(lakename == "Paul Lake")
+Peterlake_raw <- NTLR_raw %>%
+  filter(lakename == "Peter Lake")
+Tuesdaylake_raw <- NTLR_raw %>%
+  filter(lakename == "Tuesday Lake")
+Eastlonglake_raw <- NTLR_raw %>%
+  filter(lakename == "East Long Lake")
+Westlonglake_raw <- NTLR_raw %>%
+  filter(lakename == "West Long Lake")
+Centrallonglake_raw <- NTLR_raw %>%
+  filter(lakename == "Central Long Lake")
+Hummingbirdlake_raw <- NTLR_raw %>%
+  filter(lakename == "Hummingbird Lake")
+Cramptonlake_raw <- NTLR_raw %>%
+  filter(lakename == "Crampton Lake")
+Wardlake_raw <- NTLR_raw %>%
+  filter(lakename == "Ward Lake")
+```
+Determine how to set a thermocline benchmark (July average?)
+"Keith, great idea. You might run into limitations answering this question due to sparse depth measurements and/or not enough temporal resolution. In that case, I might suggest a few options: (1) choose certain depths and compare along time series (i.e., hold depth constant and compare across time), (2) pay attention to the depth_id, which corresponds to a certain percent of surface irradiance (see NTL-LTER website for more info). Light could be used in addition to or separately from temperature data, (3) Analyze O2 in addition to temperature - this will give you an indication about development of hypoxia (when and at what depth) and how that might change over time. So, lots of places to pivot if you don't have enough resolution to answer your question at face value.''
+
+Determine how to set a thermocline benchmark:
+It looks like there is not enough temporal resolution to measure close-to-continuous change in thermocline depth over the course of a given season. Likewise, there is not enough close-to-continous depth measurements taken at each lake, nor is there consistant data taken below 10 meters of depth. As such, I will compare what is occurring at 10 meters depth at each lake over time. 10 meters, I know from my experience as a fisherman, is about where the summer thermocline sets up in a northern US lake. I grew up north of the Adirondack Mountains of Northern New York, which is pretty similar in a number of ways, including climatologically, to northern Wisconsin. Therefore, evaluating what is happening at 10m depth in each lake will give a good idea what sorts of conditions trout are dealing with in these lakes in the summmer. Of course, this is more academic than practical if trout do not live in these lakes.
+
+My research question, then, is as follows:
+
+How have temperature and oxygen conditions changed at 10 meters depth in a series of Wisconsin Lakes? Is climate change affecting where the thermocline sets up in these lakes?
+```{r}
+#filtering for just the data at 10m depths in summer (June 20-September 21)
+Paullake_processed <- Paullake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Paullake_processed)  
+#Enough datapoints to analyse this lake.
+
+Peterlake_processed <- Peterlake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Peterlake_processed) 
+#Enough datapoints to analyse this lake.
+
+Tuesdaylake_processed <- Tuesdaylake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Tuesdaylake_processed) #Enough datapoints to analyse this lake.
+
+Eastlonglake_processed <- Eastlonglake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Eastlonglake_processed) 
+#Enough datapoints to analyse this lake.
+
+Westlonglake_processed <- Westlonglake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Westlonglake_processed) 
+#Enough datapoints to analyse this lake.
+
+Centrallonglake_processed <- Centrallonglake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)  
+dim(Centrallonglake_processed) 
+#There are 0 data points taken on Central Long Lake below 4 meters. Unfortunately, I am going to have to eliminate Central Long Lake from my analysis.
+
+Hummingbirdlake_processed <- Hummingbirdlake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)  
+dim(Hummingbirdlake_processed) 
+#Hummingbird lake only has data from 3 years, and only one datapoint is below 7 meters. Unfortunately, I am going to have to eliminate Hummingbird Lake from my analysis.
+
+Cramptonlake_processed <- Cramptonlake_raw %>%
+  filter(depth == 10, daynum %in% 172:264)
+dim(Cramptonlake_processed) 
+#There are probably enough datapoints to analyse this lake.
+
+Wardlake_processed <- Wardlake_raw %>%
+  filter(depth == 10, daynum %in% 172:264) 
+dim(Wardlake_processed) 
+#Ward lake only has seven datapoints below 7 meters. Unfortunately, I am going to have to eliminate Ward Lake from my analysis.
+```
+After deciding on what question I wanted to answer and what data I wanted to use to answer my question, I unfortunately had to eliminate three lakes from my analysis. I still have six lakes to perform my analysis on.
+
+```{r}
+#Combining the processed lake data into one file for later analysis
+NTLER_processed <- rbind(Paullake_processed, Peterlake_processed, Tuesdaylake_processed,
+                          Eastlonglake_processed, Westlonglake_processed, Cramptonlake_processed)
+unique(NTLER_processed$lakename)
+dim(NTLER_processed)
+```
+
+A little data visualization before my data analysis.
+```{r}
+Alllakes_boxplot <- ggplot(NTLER_processed, aes(x = lakename, y = temperature_C, color = lakename))+
+  geom_boxplot()+
+  labs(x = "Lake Name", y = "Temperature (Celsius)", color = "Lake Name")
+Alllakes_boxplot
+#This graph tells us about the temperature data distribution for each lake at 10m depth, and tells us which lakes are coldest in the summer. 
+
+Paultemp_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = temperature_C, color = temperature_C))+
+  geom_point()+
+  labs(x = "Date", y = "Temperature in Celsius", color = "Temperature (Degrees Celsius)")+
+  scale_color_gradient(low = "blue", high = "red")
+Paultemp_visualization
+#maybe a slight upward trend in temperature at 10m over time
+
+Paulo2_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = dissolvedOxygen, color = dissolvedOxygen))+
+  geom_point()+
+  labs(x = "Date", y = "Percent Dissolved O2", color = "Dissolved O2")+
+  scale_color_gradient(low = "blue", high = "red")
+Paulo2_visualization
+#I can't really see a trend in dissolved oxygen
+
+Alllakes_visualization <- ggplot(NTLER_processed, aes(x = sampledate, y = temperature_C, color = lakename))+
+  geom_point()+
+  labs(x = "Date", y = "Temperature (Celsius)", color = "Lake Name")
+Alllakes_visualization
+#Kind of hard to see a trend here. This graph has too much data at once and different lakes have different temporal ranges.
+```
+

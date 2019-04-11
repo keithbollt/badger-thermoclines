@@ -218,6 +218,7 @@ Alllakestemptest.mixed <- lme(data = NTLER_processed,
                      correlation = corAR1(form = ~ sampledate/lakename|Week, value = 0.07167968), #correlation from previous model, sampledate/lakename because the model can only do one lake at a time
                      method = "REML")
 summary(Alllakestemptest.mixed)
+#The sampledate number is the slope! 0.000219 means an increase!
 ```
 The results from our mixed effects test demonstrate an important finding. Observe that the p-value for sampledate is less than 0.05. This means that we cannot reject the null hypothesis that there is a significant correlation between date and temperature at 10 meters. This supports the idea that the temperature at 10 meters in these lakes is changing.
 

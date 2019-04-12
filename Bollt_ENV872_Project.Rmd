@@ -1,16 +1,21 @@
 ---
-title: "Bollt_FinalProject_Thermocline"
-output: pdf_document
+output: 
+  pdf_document:
+    keep_tex: yes
+    fig_caption: yes
+    number_sections: yes
 geometry: margin=2.54cm
-editor_options: 
-  chunk_output_type: console
+title: "Are the Thermoclines on Wisconsin Lakes Moving Deeper?"
+subtitle: Web address for GitHub repository
+author: Keith Bollt
+abstract: "Experimental overview. This section should be no longer than 250 words."
+fontsize: 12pt
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-The crux of this project is to compare how the thermoclines on each of the 9 Wisconsin lakes in the NTL-LTER dataset have moved over the course of the 35 years of data. I am interested in this question because I have an interest in coldwater fisheries that rely on thermoclines to survive the summer weather. Perhaps climate change is affecting where the thermocline sets up, and therefore shrinking the available summer habitat of trout.
 ```{r package and data load; theme}
 #Setting up session and loading all packages I think I might need
 getwd()
@@ -20,42 +25,48 @@ library(ggplot2)
 library(multcompView)
 library(nlme)
 library(lsmeans)
-
-#Reading in the raw lake dataset
-NTLR_raw <- read.csv("V:/ENV_872_Project_Directory/Data/Raw/NTL-LTER_Lake_ChemistryPhysics_Raw.csv")
-View(NTLR_raw)
+#install.packages("trend")
+library(trend)
 
 #setting a theme for plots
 mytheme <- mytheme <- theme_classic(base_size = 12.2696)+
   theme(axis.text = element_text(color = "Blue"),
-  legend.position = "top")
+  legend.position = "top")+
+  plot.title = element_text(hjust = 0.5)
 theme_set(mytheme)
 ```
-Next steps (document everything with comments as you work):
-Change the date column to dates
-Filter to generate a dataset for each of the nine lakes.
-Determine how to set a thermocline benchmark (July average?)
-Determine what data to compare to over time (see Kateri's comment)
-Run that comparison for each lake
-Figure out how to compare each of the lakes to eachother to look for overall trends - maybe correlated with maximum depth
--maybe compare average temperature and temperature range?
--Mann-Kendall to look for trends between lakes controlling for seasonality (o2 and temperature)
--Look at each lake individually for both o2 and temperature to look for trends
-Make a bunch of graphs
-Write the report (you might have to knit it to Word for your own sanity)
-Go fishing
 
-Change the date column to dates
-```{r date as date}
+```{r data wrangling}
+#Reading in the raw lake dataset
+NTLR_raw <- read.csv("V:/ENV_872_Project_Directory/Data/Raw/NTL-LTER_Lake_ChemistryPhysics_Raw.csv")
+View(NTLR_raw)
+
 #Changing the date column to read as a date
 class(NTLR_raw$sampledate)
 NTLR_raw$sampledate <- as.Date(NTLR_raw$sampledate, format="%m/%d/%y")
 class(NTLR_raw$sampledate)
 ```
 
-Filter to generate a dataset for each of the nine lakes.
+
+Research Question and Rationale:
+  The crux of this project is to determine if the thermoclines on each of the 9 Wisconsin lakes in the NTL-LTER chemistry and physics dataset have moved over the course of the 33 years of data between 1984 and 2016. I am interested in this question because as a flyfisherman, I have an interest in coldwater fisheries that rely on thermoclines to survive the summer weather. Perhaps climate change is affecting where the thermocline sets up, and therefore shrinking the available summer habitat of trout.
+
+  In order to determine whether thermoclines on these lakes are moving deeper in  the water column, I need to set a benchmark definition for a thermocline. It looks like there is not enough temporal resolution to measure close-to-continuous change in thermocline depth over the course of a given season. Likewise, there is not enough close-to-continous depth measurements taken at each lake, nor is there consistant data taken below 10 meters of depth. As such, I will compare what is occurring at a constant depth near the expected thermocline location at each lake over time. The depth that I chose for the purpose of this study is 7 meters. 7 meters, I know from my experience as a fisherman, is on the shallow end of where a thermocline sets up in a northern US lake. In addition, there is enough temporal resolution at seven meters to perform statistical analysis on five of the lakes in the raw dataset. Therefore, evaluating what is happening at 7m depth in each lake will give a good idea what sorts of conditions trout are dealing with in these lakes in the summmer. I know from data visualization that did not make my final report that there is much more variation by year at 7 meters depth than at, say, 10 meters depth. This indicates that 7 meters is indeed a pretty good estimation of thermocline location for these lakes. Looking for change at 7 meters should give me a good picture of whether the thermocline in these lakes is changing over time. 
+
+I will look at two indicators of thermocline establishment at 7 meters: temperature and dissolved oxygen content. I would expect water at or below the thermocline to have low temperatures and hypoxic conditions (low oxygen levels). If the thermoclines on these lakes are trending deeper over the course of my dataset, I would expect most of the lakes to show increasing temperatures and increasing dissolved oxygen levels at a 7 meter depth.
+
+My research question, then, is as follows:
+
+How have temperature and oxygen conditions changed at 7 meters depth in a series of Wisconsin Lakes? Is climate change affecting where the thermocline sets up in these lakes?
+
+Dataset Information:
+
+Exploratory Data Analysis Wrangling:
+
+  In order to answer my research question, I need to wrangle my data to only include the data relevant to my study and to organize it by lake. I only want data during the summer months (June 20 through September 21) because this is the time of year when the thermocline is the steepest and coldwater fish are the most thermally stressed. I also only want data collected at a 7 meter depth.
+  My first step is to filter my raw data to generate a dataset for each of the nine lakes.This data summary gives me the names of the nine lakes.
 ```{r filter}
-unique(NTLR_raw$lakename)  # This data summary gives me the names of the nine lakes.
+unique(NTLR_raw$lakename)  
 Paullake_raw <- NTLR_raw %>%
   filter(lakename == "Paul Lake")
 Peterlake_raw <- NTLR_raw %>%
@@ -75,27 +86,18 @@ Cramptonlake_raw <- NTLR_raw %>%
 Wardlake_raw <- NTLR_raw %>%
   filter(lakename == "Ward Lake")
 ```
-Determine how to set a thermocline benchmark (July average?)
-"Keith, great idea. You might run into limitations answering this question due to sparse depth measurements and/or not enough temporal resolution. In that case, I might suggest a few options: (1) choose certain depths and compare along time series (i.e., hold depth constant and compare across time), (2) pay attention to the depth_id, which corresponds to a certain percent of surface irradiance (see NTL-LTER website for more info). Light could be used in addition to or separately from temperature data, (3) Analyze O2 in addition to temperature - this will give you an indication about development of hypoxia (when and at what depth) and how that might change over time. So, lots of places to pivot if you don't have enough resolution to answer your question at face value.''
 
-Determine how to set a thermocline benchmark:
-It looks like there is not enough temporal resolution to measure close-to-continuous change in thermocline depth over the course of a given season. Likewise, there is not enough close-to-continous depth measurements taken at each lake, nor is there consistant data taken below 10 meters of depth. As such, I will compare what is occurring at 10 meters depth at each lake over time. 10 meters, I know from my experience as a fisherman, is about where the summer thermocline sets up in a northern US lake. I grew up north of the Adirondack Mountains of Northern New York, which is pretty similar in a number of ways, including climatologically, to northern Wisconsin. Therefore, evaluating what is happening at 10m depth in each lake will give a good idea what sorts of conditions trout are dealing with in these lakes in the summmer. Of course, this is more academic than practical if trout do not live in these lakes.
-
-My research question, then, is as follows:
-
-How have temperature and oxygen conditions changed at 10 meters depth in a series of Wisconsin Lakes? Is climate change affecting where the thermocline sets up in these lakes?
+My next step is to filter my dataset to only include data collected at 7 meters depths between June 20 and September 21. I also checked the dimensions of my wrangled data to make sure each lake still had enough datapoints to perform statistical analysis on.
 ```{r processing each lake}
-#filtering for just the data at 10m depths in summer (June 20-September 21)
 Paullake_processed <- Paullake_raw %>%
-  filter(depth == 10, daynum %in% 172:264) %>%
+  filter(depth == 7, daynum %in% 172:264) %>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
 dim(Paullake_processed)  
-#Enough datapoints to analyse this lake.
 
 Peterlake_processed <- Peterlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
@@ -103,14 +105,14 @@ dim(Peterlake_processed)
 #Enough datapoints to analyse this lake.
 
 Tuesdaylake_processed <- Tuesdaylake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
 dim(Tuesdaylake_processed) #Enough datapoints to analyse this lake.
 
 Eastlonglake_processed <- Eastlonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
@@ -118,7 +120,7 @@ dim(Eastlonglake_processed)
 #Enough datapoints to analyse this lake.
 
 Westlonglake_processed <- Westlonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
@@ -126,7 +128,7 @@ dim(Westlonglake_processed)
 #Enough datapoints to analyse this lake.
 
 Centrallonglake_processed <- Centrallonglake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()  
@@ -134,96 +136,264 @@ dim(Centrallonglake_processed)
 #There are 0 data points taken on Central Long Lake below 4 meters. Unfortunately, I am going to have to eliminate Central Long Lake from my analysis.
 
 Hummingbirdlake_processed <- Hummingbirdlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()  
 dim(Hummingbirdlake_processed) 
-#Hummingbird lake only has data from 3 years, and only one datapoint is below 7 meters. Unfortunately, I am going to have to eliminate Hummingbird Lake from my analysis.
+#Hummingbird lake only has one datapoint at 7 meters. Unfortunately, I am going to have to eliminate Hummingbird Lake from my analysis.
 
 Cramptonlake_processed <- Cramptonlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude()
 dim(Cramptonlake_processed) 
-#There are probably enough datapoints to analyse this lake.
+#There are only 34 datapoints, not enough datapoints to analyse this lake.
 
 Wardlake_processed <- Wardlake_raw %>%
-  filter(depth == 10, daynum %in% 172:264)%>%
+  filter(depth == 7, daynum %in% 172:264)%>%
   select(lakename:dissolvedOxygen) %>%
   mutate(Week = week(sampledate)) %>%
   na.exclude() 
 dim(Wardlake_processed) 
-#Ward lake only has seven datapoints below 7 meters. Unfortunately, I am going to have to eliminate Ward Lake from my analysis.
+#Ward lake only has 11 datapoints at 7 meters. Unfortunately, I am going to have to eliminate Ward Lake from my analysis.
 ```
-After deciding on what question I wanted to answer and what data I wanted to use to answer my question, I unfortunately had to eliminate three lakes from my analysis. I still have six lakes to perform my analysis on.
+
+After deciding on what question I wanted to answer and what data I wanted to use to answer my question, I unfortunately had to eliminate four lakes from my analysis. I still have five lakes to perform my analysis on. I also combined my five processed datasets into one dataframe for part of my statistical analysis. My first series of statistical tests will look at the combined dataset and my second series of statistical tests will look at each lake individually.
 
 ```{r combining processd data}
-#Combining the processed lake data into one file for later analysis
-NTLER_processed <- rbind(Paullake_processed, Peterlake_processed, Tuesdaylake_processed,
-                          Eastlonglake_processed, Westlonglake_processed, Cramptonlake_processed)
-unique(NTLER_processed$lakename)
-dim(NTLER_processed)
-head(NTLER_processed)
+NTL_processed <- rbind(Paullake_processed, Peterlake_processed, Tuesdaylake_processed,
+                          Eastlonglake_processed, Westlonglake_processed)
+View(NTL_processed)
+unique(NTL_processed$lakename)
+dim(NTL_processed)
+head(NTL_processed)
 ```
 
-A little data visualization before my data analysis.
-```{r visualization, include=FALSE}
-Alllakes_boxplot <- ggplot(NTLER_processed, aes(x = lakename, y = temperature_C, color = lakename))+
-  geom_boxplot()+
-  labs(x = "Lake Name", y = "Temperature (Celsius)", color = "Lake Name")
-Alllakes_boxplot
-#This graph tells us about the temperature data distribution for each lake at 10m depth, and tells us which lakes are coldest in the summer. 
+Now, I will perform a little data visualization before my data analysis. I hope to get a feel for the data I am working with, and maybe anticipate the types of results I will find when I perform statistical analyses in the next section of this report.
 
+See in "Temperature Distribution at 7 Meters"  the temperature data distribution for each of the five lakes at 7m depth. This figure tells us which lakes are coldest in the summer. 
+```{r visualization, echo=FALSE, fig.cap="Temperature Distribution at 7 Meters, \\label{LakesTemperature}"}
+Alllakes_boxplot <- ggplot(NTL_processed, aes(x = lakename, y = temperature_C, color = lakename))+
+  geom_boxplot()+
+  labs(x = "Lake Name", y = "Temperature (Celsius)", color = "Lake Name")+
+  ggtitle("Temperature Distribution at 7 Meters")+
+  theme(plot.title = element_text(hjust = 0.5))
+Alllakes_boxplot
+```
+
+See in the figure titled "Temperature versus Dissolved Oxygen" there is no real correlation between temperature and dissolved oxygen at 7 meters depth across the five lakes.
+```{r visualization2, echo=FALSE}
+tempvso2_plot <- ggplot(NTL_processed, aes(x = temperature_C, y = dissolvedOxygen, color = lakename))+
+  geom_point()+
+  labs(x = "Temperature (Celsius)", y = "Percent Dissolved Oxygen", color = "Lake Name")+
+  ggtitle("Temperature vs Dissolved Oxygen")+
+  theme(plot.title = element_text(hjust = 0.5))
+tempvso2_plot  
+```
+
+See in the figure titled "Paul Lake Temperature Over Time" there is not really much of a trend in temperature in Paul Lake at 7 m depth over time.
+```{r visualization3, echo=FALSE}
 Paultemp_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = temperature_C, color = temperature_C))+
   geom_point()+
   labs(x = "Date", y = "Temperature in Celsius", color = "Temperature (Degrees Celsius)")+
-  scale_color_gradient(low = "blue", high = "red")
+  scale_color_gradient(low = "dark blue", high = "light blue")+
+  ggtitle("Paul Lake Temperature Over Time")+
+  theme(plot.title = element_text(hjust = 0.5))
 Paultemp_visualization
-#maybe a slight upward trend in temperature at 10m over time
-#use this chart for Thursday
+```
 
+See in the figure titled "Paul Lake Dissolved Oxygen Over Time" there is not really much of a trend in dissolved oxygen in Paul Lake at 7 m depth over time.
+```{r visualization4, echo=FALSE}
 Paulo2_visualization <- ggplot(Paullake_processed, aes(x = sampledate, y = dissolvedOxygen, color = dissolvedOxygen))+
   geom_point()+
   labs(x = "Date", y = "Percent Dissolved O2", color = "Dissolved O2")+
-  scale_color_gradient(low = "blue", high = "red")
+  scale_color_gradient(low = "red", high = "white")+
+  ggtitle("Paul Lake Dissolved Oxygen Over Time")+
+  theme(plot.title = element_text(hjust = 0.5))
 Paulo2_visualization
-#I can't really see a trend in dissolved oxygen
-
-Alllakes_visualization <- ggplot(NTLER_processed, aes(x = sampledate, y = temperature_C, color = lakename))+
-  geom_point()+
-  labs(x = "Date", y = "Temperature (Celsius)", color = "Lake Name")
-Alllakes_visualization
-#Kind of hard to see a trend here. This graph has too much data at once and different lakes have different temporal ranges.
 ```
 
-Now that I have visualized my data, it is time to start running statistical tests on it in order to answer my research question. I am going to look at each of the nine lakes individually, and then look at all nine lakes at once. I am interested in two parameters at 10 meters depth, temperature and dissolved oxygen content. I will run a repeated measures ANOVA on the combined processed dataset, which contains data from six lakes. I will first run the test on temperature and then on dissolved oxygen. This test takes into account autocorrelation within a given year and within a given lake. 
+See in the figure titled "Paul Lake Temperature Over Time" that it is kind of hard to make out a temperature trend in the combined dataset. This graph has too much data at once and different lakes have different temporal ranges.
+```{r visualization5, echo=FALSE}
+Alllakes_visualization <- ggplot(NTL_processed, aes(x = sampledate, y = temperature_C, color = lakename))+
+  geom_point()+
+  labs(x = "Date", y = "Temperature (Celsius)", color = "Lake Name")+
+  ggtitle("Temprature of All Lakes Over Time")+
+  theme(plot.title = element_text(hjust = 0.5))
+Alllakes_visualization
+```
+
+  Overall, my data visualization is not too promising yet. Paul Lake does not seem to have a trend in either temperature or dissolved oxygen over time. Likewise, the combined dataset does not appear to have a trend in temperature over time. However, just because there is not a trend visible to the naked eye does not mean that a trend does not exist. I will run a series of statistical analyses on the combined dataset and on each of the five lakes individually to try and tease out a relationship that would indicate that thermocline location is moving in response to climate change.
+
+Analysis:
+
+  Now that I have visualized my data, it is time to start running statistical tests on it in order to answer my research question. I am interested in two parameters at 7 meters depth, temperature and dissolved oxygen content. First, I will perform two repeated measures ANOVAs on the combined processed dataset. I will first run the test on temperature and then on dissolved oxygen. These two tests takes into account autocorrelation within a given year and within a given lake. 
 
 ```{r repeated measures ANOVA temperature }
 
 #Accounting for autocorrelation
-Alllakestemptest.auto <- lme(data = NTLER_processed, 
+Alllakestemptest.auto <- lme(data = NTL_processed, 
                      temperature_C ~ sampledate * lakename, #fixed effects portion of model: response variable, being predicted based off of sampledate and lakename
                      random = ~1|Week)  # this is the random effect portion of the model
 Alllakestemptest.auto
 # we care about the Stddeviation between each week
 ACF(Alllakestemptest.auto)
-# we care about the lag of 1's value. This tells us how much temperature is autocorrelated within a given year (it's about 7%)
+# we care about the lag of 1's value. This tells us how much temperature is autocorrelated within a given year (it's about 23%)
 
 #running the ANOVA
-Alllakestemptest.mixed <- lme(data = NTLER_processed,
+Alllakestemptest.mixed <- lme(data = NTL_processed,
                      temperature_C ~ sampledate * lakename, 
                      random = ~1|Week,
-                     correlation = corAR1(form = ~ sampledate/lakename|Week, value = 0.07167968), #correlation from previous model, sampledate/lakename because the model can only do one lake at a time
+                     correlation = corAR1(form = ~ sampledate/lakename|Week, value = 0.2323), #correlation from previous model, sampledate/lakename because the model can only do one lake at a time
                      method = "REML")
 summary(Alllakestemptest.mixed)
-#The sampledate number is the slope! 0.000219 means an increase!
+#There is not a significant trend among all of the lakes at 7m.
 ```
-The results from our mixed effects test demonstrate an important finding. Observe that the p-value for sampledate is less than 0.05. This means that we cannot reject the null hypothesis that there is a significant correlation between date and temperature at 10 meters. This supports the idea that the temperature at 10 meters in these lakes is changing.
+The results from our mixed effects test demonstrates an important finding. Observe that the p-value for sampledate is 0.94. This means that we can reject the null hypothesis that there is a significant linear correlation between date and temperature of the combined dataset at 7 meters. This does not supports the idea that the temperature at 7 meters in these lakes as a group is changing. 
 
 ```{r repeated measures ANOVA oxygen}
 #oxygen may be autocorrelated with temperature
 #copy from above, and plug in the oxygen data
+#Accounting for autocorrelation
+Alllakesoxygentest.auto <- lme(data = NTL_processed, 
+                     dissolvedOxygen ~ sampledate * lakename, #fixed effects portion of model: response variable, being predicted based off of sampledate and lakename
+                     random = ~1|Week)  # this is the random effect portion of the model
+Alllakesoxygentest.auto
+# we care about the Stddeviation between each week
+ACF(Alllakesoxygentest.auto)
+# we care about the lag of 1's value. This tells us how much temperature is autocorrelated within a given year (it's about 6%)
+
+#running the ANOVA
+Alllakesoxygentest.mixed <- lme(data = NTL_processed,
+                     dissolvedOxygen ~ sampledate * lakename, 
+                     random = ~1|Week,
+                     correlation = corAR1(form = ~ sampledate/lakename|Week, value = 0.0645), #correlation from previous model, sampledate/lakename because the model can only do one lake at a time
+                     method = "REML")
+summary(Alllakesoxygentest.mixed)
+#There is not a significant trend among all of the lakes at 7m.
+```
+The results from our mixed effects test demonstrates an important finding. Observe that the p-value for sampledate is 0.43. This means that we can reject the null hypothesis that there is a significant linear correlation between date and dissolved oxygen content of combined dataset at 7 meters. This does not supports the idea that the dissolved oxygen at 7 meters in these lakes as a group is changing. 
+
+While we have rejected the null hypothesis that there is a significant linear trend between the five lakes for either temperature or dissolved oxygen, we can still look at trends in the individual lakes. In order to do this, a seasonal Mann-Kendall test is appropriate. I will run 10 seasonal Mann Kendall tests (five lakes and two parameters per lake). I will set each year's summer as its own season.
+
+```{r ANOVA temperature by lake}
+#Paul Lake
+length(unique(Paullake_processed$year4)) #Tells me how many summers are in the dataset.
+Paullaketemp_ts <- ts(Paullake_processed$temperature_C,
+                      start = c(1984), frequency = 33)
+Paullaketemp_ts
+Paul_temp_smk <- smk.test(Paullaketemp_ts)
+Paul_temp_smk
+summary(Paul_temp_smk) #The seasonal Mann Kendall test for temperature at Paul Lake had an overall z-score of 2.2304, an overall p-value of 0.02572 and an overall S value of 159. This test shows a significant positive temperature trend over time at Paul Lake.
+
+Paullakeo2_ts <- ts(Paullake_processed$dissolvedOxygen,
+                      start = c(1984), frequency = 33)
+Paullakeo2_ts
+Paul_o2_smk <- smk.test(Paullakeo2_ts)
+Paul_o2_smk
+summary(Paul_o2_smk) #The seasonal Mann Kendall test for dissolved oxygen at Paul Lake had an overall z-score of -0.434, an overall p-value of 0.66 and an overall S value of -31. This test shows a nonsignificant negative dissolved oxygen trend over time at Paul Lake.
+
+#Peter Lake
+length(unique(Peterlake_processed$year4)) #Tells me how many summers are in the dataset.
+Peterlaketemp_ts <- ts(Peterlake_processed$temperature_C,
+                      start = c(1984), frequency = 33)
+Peterlaketemp_ts
+Peter_temp_smk <- smk.test(Peterlaketemp_ts)
+Peter_temp_smk
+summary(Peter_temp_smk) #The seasonal Mann Kendall test for temperature at Peter Lake had an overall z-score of -9.637, an overall p-value of <2.2x10^-16 and an overall S value of -676. This test shows a significant negative temperature trend over time at Peter Lake.
+
+Peterlakeo2_ts <- ts(Peterlake_processed$dissolvedOxygen,
+                      start = c(1984), frequency = 33)
+Peterlakeo2_ts
+Peter_o2_smk <- smk.test(Peterlakeo2_ts)
+Peter_o2_smk
+summary(Peter_o2_smk) #The seasonal Mann Kendall test for dissolved oxygen at Peter Lake had an overall z-score of -10.557, an overall p-value of <2.2x10^-16 and an overall S value of -738. This test shows a significant negative dissolved oxygen trend over time at Peter Lake.
+
+#Tuesday Lake
+unique(Tuesdaylake_processed$year4) # There are too many gaps in the data, including a 10 year gap from 2002 to 2012 (which is 30% of the length of the timeseries), for me to interpolate the whole dataset for purposes of analysis. I will look at 1984 to 1991, the longest set of continous data collection.
+Tuesday_smk <- Tuesdaylake_processed %>%
+  filter(year4 >= 1984, year4 <= 1991)
+Tuesdaylaketemp_ts <- ts(Tuesday_smk$temperature_C,
+                      start = c(1984), frequency = 8)
+Tuesdaylaketemp_ts
+Tuesday_temp_smk <- smk.test(Tuesdaylaketemp_ts)
+Tuesday_temp_smk
+summary(Tuesday_temp_smk) #The seasonal Mann Kendall test for temperature at Tuesday Lake had an overall z-score of -0.56, an overall p-value of 0.57 and an overall S value of -23. This test shows a nonsignificant negative temperature trend over time at Tuesday Lake.
+
+Tuesdaylakeo2_ts <- ts(Tuesday_smk$dissolvedOxygen,
+                      start = c(1984), frequency = 8)
+Tuesdaylakeo2_ts
+Tuesday_o2_smk <- smk.test(Tuesdaylakeo2_ts)
+Tuesday_o2_smk
+summary(Tuesday_o2_smk) #The seasonal Mann Kendall test for dissolved oxygen at Tuesday Lake had an overall z-score of -3.39, an overall p-value of 0.0007 and an overall S value of -128. This test shows a significant negative dissolved oxygen trend over time at Tuesday Lake.
+
+#East Long Lake
+unique(Eastlonglake_processed$year4) #There are too many gaps in the data, including no data after 2006 (which is 30% of the length of the timeseries), for me to interpolate the whole dataset for purposes of analysis. I will look at 1989 to 2000, the longest set of continous data collection.
+Eastlong_smk <- Eastlonglake_processed %>%
+  filter(year4 >= 1989, year4 <= 2000)
+Eastlonglaketemp_ts <- ts(Eastlong_smk$temperature_C,
+                      start = c(1989), frequency = 12)
+Eastlonglaketemp_ts
+Eastlong_temp_smk <- smk.test(Eastlonglaketemp_ts)
+Eastlong_temp_smk
+summary(Eastlong_temp_smk) #The seasonal Mann Kendall test for temperature at East Long Lake had an overall z-score of -0.84, an overall p-value of 0.40 and an overall S value of -32. This test shows a nonsignificant negative temperature trend over time at East Long Lake.
+
+Eastlonglakeo2_ts <- ts(Eastlong_smk$dissolvedOxygen,
+                      start = c(1989), frequency = 12)
+Eastlonglakeo2_ts
+Eastlong_o2_smk <- smk.test(Eastlonglakeo2_ts)
+Eastlong_o2_smk
+summary(Eastlong_o2_smk) #The seasonal Mann Kendall test for dissolved oxygen at East Long Lake had an overall z-score of 0.83, an overall p-value of 0.41 and an overall S value of 31. This test shows a nonsignificant positive dissolved oxygen trend over time at West Long Lake.
+
+#West Long Lake
+unique(Westlonglake_processed$year4) #There are too many gaps in the data, including no data after 2006 (which is 30% of the length of the timeseries), for me to interpolate the whole dataset for purposes of analysis. I will look at 1989 to 2000, the longest set of continous data collection.
+Westlong_smk <- Westlonglake_processed %>%
+  filter(year4 >= 1989, year4 <= 2000)
+Westlonglaketemp_ts <- ts(Westlong_smk$temperature_C,
+                      start = c(1989), frequency = 12)
+Westlonglaketemp_ts
+Westlong_temp_smk <- smk.test(Westlonglaketemp_ts)
+Westlong_temp_smk
+summary(Westlong_temp_smk) #The seasonal Mann Kendall test for temperature at West Long Lake had an overall z-score of -1.65, an overall p-value of 0.10 and an overall S value of -62. This test shows a nonsignificant negative temperature trend over time at West Long Lake.
+
+Westlonglakeo2_ts <- ts(Westlong_smk$dissolvedOxygen,
+                      start = c(1989), frequency = 12)
+Westlonglakeo2_ts
+Westlong_o2_smk <- smk.test(Westlonglakeo2_ts)
+Westlong_o2_smk
+summary(Westlong_o2_smk) #The seasonal Mann Kendall test for dissolved oxygen at West Long Lake had an overall z-score of -0.47, an overall p-value of 0.64 and an overall S value of -18. This test shows a nonsignificant negative dissolved oxygen trend over time at West Long Lake.
 ```
 
+My data does not appear to be showing a significant change in the thermocline of any of the five individual lakes, as defined by both higher temperatures and lower oxygen levels at 7 meters depth. Let's visualize the temperature and oxygen over the period of the ten tests I just ran to see if the naked eye agrees with my statistical analysis.
+
+See in "Dissolved Oxygen Over Time in Each Lake" that the seasonal Mann Kendall results for the five lakes do not show an overall dissolved oxygen trend at 7 meters in a particular direction.
+```{r smk oxygen visualization, echo= FALSE}
+#Combining the smk data into one dataframe
+alllakes_smk <- rbind(Paullake_processed, Peterlake_processed, Tuesday_smk,
+                          Eastlong_smk, Westlong_smk)
+oxygenvisualization <- ggplot(alllakes_smk, aes(x = sampledate, y = dissolvedOxygen, color = dissolvedOxygen))+
+  geom_point()+
+  facet_wrap(vars(lakename), nrow = 2)+
+  labs(x = "Date", y = "Percent Dissolved Oxygen", color = "Percent Dissolved Oxygen")+
+  ggtitle("Dissolved Oxygen Over Time in Each Lake")+
+  scale_color_gradient(low = "light red", high = "dark red")+
+  theme(plot.title = element_text(hjust = 0.5))
+oxygenvisualization
+```
+
+See in "Temperature Over Time in Each Lake" that the seasonal Mann Kendall results for the five lakes do not show an overall temperature trend at 7 meters in a particular direction.
+```{r smk temperature visualization, echo= FALSE}
+temperaturevisualization <- ggplot(alllakes_smk, aes(x = sampledate, y = temperature_C, color = temperature_C))+
+  geom_point()+
+  facet_wrap(vars(lakename), nrow = 2)+
+  labs(x = "Date", y = "Temperature (Degrees Celsius)", color = "Temperature (Degrees Celsius")+
+  ggtitle("Temperature Over Time in Each Lake")+
+  scale_color_gradient(low = "yellow", high = "red")+
+  theme(plot.title = element_text(hjust = 0.5))
+temperaturevisualization
+```
+
+Discussion:
+  The results of my tests seem to run contrary to the idea that climate change is affecting the water temperatures of the lakes in this study. However, it may be the case that my tests are inconclusive by design. I am testing whether the thermocline on these lakes is moving over time. The location of a lake's thermocline is a product of water chemistry and physics, especially water density. It may be the case that the basic physics of water that determine where a thermocline sets up are not affected by 1 °C of global warming. Perhaps, given relatively modest warming, it is the relative water density that determines where the thermocline location sets up. It may be the case that the steepness and not the location of the thermocline is what is changing under relatively small  amounts of warming. If I were to test surface water temperature or water temperature at, say, 15 meters, I would likely see evidence of climate change.  It might require larger levels of warming for the thermocline itself to also move. Unfortunately, testing this hypothesis is beyond the scope of the dataset I am analyzing.
